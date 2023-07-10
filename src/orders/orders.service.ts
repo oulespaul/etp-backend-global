@@ -1,26 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderDto } from './dto/update-order.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Orderbook } from './entities/orderbook.entity';
+import { InsertResult, Repository } from 'typeorm';
 
 @Injectable()
 export class OrdersService {
-  create(createOrderDto: CreateOrderDto) {
-    return 'This action adds a new order';
+  constructor(
+    @InjectRepository(Orderbook)
+    private orderbookRepository: Repository<Orderbook>,
+  ) {}
+
+  blukCreate(createOrderDto: CreateOrderDto[]): Promise<InsertResult> {
+    const orderbookEntities = createOrderDto.map((order) =>
+      this.orderbookRepository.create(order),
+    );
+
+    return this.orderbookRepository.insert(orderbookEntities);
   }
 
-  findAll() {
-    return `This action returns all orders`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} order`;
-  }
-
-  update(id: number, updateOrderDto: UpdateOrderDto) {
-    return `This action updates a #${id} order`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} order`;
+  findAll(): Promise<Orderbook[]> {
+    return this.orderbookRepository.find();
   }
 }
