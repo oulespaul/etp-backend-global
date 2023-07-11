@@ -2,10 +2,15 @@ import { Module } from '@nestjs/common';
 import { OrdersModule } from './orders/orders.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
+import { TradeMatchingService } from './jobs/trade-matching.service';
+import { TradesModule } from './trades/trades.module';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot(),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -22,8 +27,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       inject: [ConfigService],
     }),
     OrdersModule,
+    TradesModule,
   ],
-  controllers: [],
-  providers: [],
+  controllers: [AppController],
+  providers: [TradeMatchingService],
 })
 export class AppModule {}
