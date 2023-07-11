@@ -19,4 +19,10 @@ export class TradesService {
 
     return this.tradebookRepository.save(tradebook);
   }
+
+  findTradeNonRequested() {
+    return this.tradebookRepository.find({
+      where: { isTradeRequest: false },
+    });
+  }
 }
