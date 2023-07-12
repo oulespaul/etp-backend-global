@@ -157,6 +157,10 @@ export class TradeMatchingService {
       );
 
       if (res) {
+        await this.tradebookService.updateTradeSendRequest(
+          tradeMatched.tradeId,
+          true,
+        );
         this.logger.log(
           `Trade request to ${tradeMatched.incomingSite} of orderId ${tradeMatched.incomingOrderId} Success!`,
         );

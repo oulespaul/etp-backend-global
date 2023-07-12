@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateTradeDto } from './dto/create-trade.dto';
 import { Tradebook } from './entities/tradebook.entity';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -34,5 +34,22 @@ export class TradesService {
         isTradeRequest: false,
       },
     });
+  }
+
+  async updateTradeSendRequest(
+    tradeId: number,
+    isTradeRequest: boolean,
+  ): Promise<Tradebook> {
+    const trade = await this.tradebookRepository.findOne({
+      where: {
+        tradeId,
+      },
+    });
+
+    if (!trade) throw new BadRequestException(`Trade id: ${tradeId} Not found`);
+
+    trade.isTradeRequest = isTradeRequest;
+
+    return this.tradebookRepository.save(trade);
   }
 }
