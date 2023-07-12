@@ -6,6 +6,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TradeMatchingService } from './jobs/trade-matching.service';
 import { TradesModule } from './trades/trades.module';
 import { AppController } from './app.controller';
+import { HttpModule } from '@nestjs/axios';
+import { TradeLocalService } from './services/trade-local.service';
 
 @Module({
   imports: [
@@ -26,10 +28,11 @@ import { AppController } from './app.controller';
       }),
       inject: [ConfigService],
     }),
+    HttpModule,
     OrdersModule,
     TradesModule,
   ],
   controllers: [AppController],
-  providers: [TradeMatchingService],
+  providers: [TradeMatchingService, TradeLocalService],
 })
 export class AppModule {}

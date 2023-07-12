@@ -7,17 +7,20 @@ import { ORDER_SIDE } from 'src/constants/order-side.enum';
 import { ORDER_STATUS } from 'src/constants/order-status.enum';
 import { TradesService } from 'src/trades/trades.service';
 import { LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { TradeLocalRequestDto } from 'src/dto/trade-local-request.dto';
+import { TradeLocalService } from 'src/services/trade-local.service';
 
 @Injectable()
 export class TradeMatchingService {
   constructor(
     private orderbookService: OrdersService,
     private tradebookService: TradesService,
+    private tradeLocalService: TradeLocalService,
   ) {}
 
   private readonly logger = new Logger(TradeMatchingService.name);
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron(CronExpression.EVERY_HOUR)
   async handler() {
     const [startOrderTime, endOrderTime] = this.getPrevDateRange();
     const workingOrders = await this.orderbookService.findWorkingByDateRange(
@@ -119,7 +122,7 @@ export class TradeMatchingService {
             incomingOrderId: order.orderId,
             quantity: matchedQty,
             price: orderbook.price,
-            tradeTime: order.orderTime,
+            tradeTime: new Date(),
             incomingOrderSide: order.side,
             bookOrderSide: orderbook.side,
             incomingOrderRemainingQuantity: quantityTmp,
@@ -133,5 +136,31 @@ export class TradeMatchingService {
     } catch (err) {
       this.logger.error('Trading matching error: ', err);
     }
+  }
+
+  @Cron('0 10 * * * *') // At second :00 of minute :10 of every hour
+  async handleSendTradeResultToLocal() {
+    const startTime = dayjs().set('minute', 0).set('second', 0).toString();
+    const endTime = dayjs().set('minute', 59).set('second', 59).toString();
+
+    const tradeMatchedList = await this.tradebookService.findMatchedByDateRange(
+      startTime,
+      endTime,
+    );
+
+    tradeMatchedList.forEach(async (tradeMatched) => {
+      const tradeLocalReq = TradeLocalRequestDto.toModel(tradeMatched);
+
+      const res = await this.tradeLocalService.tradeRequest(
+        tradeLocalReq,
+        tradeMatched.incomingSite,
+      );
+
+      if (res) {
+        this.logger.log(
+          `Trade request to ${tradeMatched.incomingSite} of orderId ${tradeMatched.incomingOrderId} Success!`,
+        );
+      }
+    });
   }
 }
