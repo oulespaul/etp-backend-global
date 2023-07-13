@@ -24,6 +24,9 @@ export class TradeMatchingService {
   @Cron('0 56 * * * *') // At second :00 of minute :56 of every hour
   async handler() {
     const [startOrderTime, endOrderTime] = this.getPrevDateRange();
+    this.logger.log(
+      `Start trade matching order between ${startOrderTime} and ${endOrderTime}`,
+    );
     const workingOrders = await this.orderbookService.findWorkingByDateRange(
       startOrderTime,
       endOrderTime,
@@ -37,15 +40,9 @@ export class TradeMatchingService {
   }
 
   private getPrevDateRange(): string[] {
-    const prevHour = dayjs().subtract(1, 'hour');
-    const startOrderTime = prevHour
-      .set('minute', 0)
-      .set('second', 0)
-      .toString();
-    const endOrderTime = prevHour
-      .set('minute', 59)
-      .set('second', 59)
-      .toString();
+    const now = dayjs();
+    const startOrderTime = now.set('minute', 0).set('second', 0).toString();
+    const endOrderTime = now.set('minute', 59).set('second', 59).toString();
 
     return [startOrderTime, endOrderTime];
   }
@@ -143,21 +140,29 @@ export class TradeMatchingService {
   }
 
   async sendTradeResultToLocal(tradeMatched: Tradebook) {
-    const tradeLocalReq = TradeLocalRequestDto.toModel(tradeMatched);
+    try {
+      const tradeLocalReq = TradeLocalRequestDto.toModel(tradeMatched);
 
-    const res = await this.tradeLocalService.tradeRequest(
-      tradeLocalReq,
-      tradeMatched.incomingSite,
-    );
+      const res = await this.tradeLocalService.tradeRequest(
+        tradeLocalReq,
+        tradeMatched.incomingSite,
+      );
 
-    if (res) {
-      await this.tradebookService.updateTradeSendRequest(
-        tradeMatched.tradeId,
-        true,
+      if (res) {
+        await this.tradebookService.updateTradeSendRequest(
+          tradeMatched.tradeId,
+          true,
+        );
+        this.logger.log(
+          `Trade request to ${tradeMatched.incomingSite} of orderId ${tradeMatched.incomingOrderId} Success!`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Trade request ${tradeMatched.incomingSite} of orderId ${tradeMatched.incomingOrderId} failed`,
+        error,
       );
-      this.logger.log(
-        `Trade request to ${tradeMatched.incomingSite} of orderId ${tradeMatched.incomingOrderId} Success!`,
-      );
+      return null;
     }
   }
 }
