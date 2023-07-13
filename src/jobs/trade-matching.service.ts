@@ -93,6 +93,7 @@ export class TradeMatchingService {
 
           quantityTmp = isFullyExecuted ? Math.abs(qtyLeft) : 0;
 
+          // Add logic for status partial matched
           // Update book order
           await this.orderbookService.save({
             ...orderbook,
