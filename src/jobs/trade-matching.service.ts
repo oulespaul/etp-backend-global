@@ -1,6 +1,6 @@
 import * as dayjs from 'dayjs';
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { OrdersService } from 'src/orders/orders.service';
 import { Orderbook } from 'src/orders/entities/orderbook.entity';
 import { ORDER_SIDE } from 'src/constants/order-side.enum';
@@ -9,6 +9,7 @@ import { TradesService } from 'src/trades/trades.service';
 import { LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { TradeLocalRequestDto } from 'src/dto/trade-local-request.dto';
 import { TradeLocalService } from 'src/services/trade-local.service';
+import { Tradebook } from 'src/trades/entities/tradebook.entity';
 
 @Injectable()
 export class TradeMatchingService {
@@ -20,7 +21,7 @@ export class TradeMatchingService {
 
   private readonly logger = new Logger(TradeMatchingService.name);
 
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron('0 56 * * * *') // At second :00 of minute :56 of every hour
   async handler() {
     const [startOrderTime, endOrderTime] = this.getPrevDateRange();
     const workingOrders = await this.orderbookService.findWorkingByDateRange(
@@ -116,14 +117,14 @@ export class TradeMatchingService {
                 : ORDER_STATUS.WORKING,
           });
 
-          await this.tradebookService.createTrade({
+          const tradeMatched = await this.tradebookService.createTrade({
             incomingAccountNo: order.accountNo,
             bookOrderAccountNo: orderbook.accountNo,
             bookOrderId: orderbook.orderId,
             incomingOrderId: order.orderId,
             quantity: matchedQty,
             price: orderbook.price,
-            tradeTime: new Date(),
+            tradeTime: order.orderTime,
             incomingOrderSide: order.side,
             bookOrderSide: orderbook.side,
             incomingOrderRemainingQuantity: quantityTmp,
@@ -132,6 +133,8 @@ export class TradeMatchingService {
             bookSite: orderbook.site,
             status: 'Matched',
           });
+
+          this.sendTradeResultToLocal(tradeMatched);
         }),
       );
     } catch (err) {
@@ -139,33 +142,22 @@ export class TradeMatchingService {
     }
   }
 
-  @Cron('0 10 * * * *') // At second :00 of minute :10 of every hour
-  async handleSendTradeResultToLocal() {
-    const startTime = dayjs().set('minute', 0).set('second', 0).toString();
-    const endTime = dayjs().set('minute', 59).set('second', 59).toString();
+  async sendTradeResultToLocal(tradeMatched: Tradebook) {
+    const tradeLocalReq = TradeLocalRequestDto.toModel(tradeMatched);
 
-    const tradeMatchedList = await this.tradebookService.findMatchedByDateRange(
-      startTime,
-      endTime,
+    const res = await this.tradeLocalService.tradeRequest(
+      tradeLocalReq,
+      tradeMatched.incomingSite,
     );
 
-    tradeMatchedList.forEach(async (tradeMatched) => {
-      const tradeLocalReq = TradeLocalRequestDto.toModel(tradeMatched);
-
-      const res = await this.tradeLocalService.tradeRequest(
-        tradeLocalReq,
-        tradeMatched.incomingSite,
+    if (res) {
+      await this.tradebookService.updateTradeSendRequest(
+        tradeMatched.tradeId,
+        true,
       );
-
-      if (res) {
-        await this.tradebookService.updateTradeSendRequest(
-          tradeMatched.tradeId,
-          true,
-        );
-        this.logger.log(
-          `Trade request to ${tradeMatched.incomingSite} of orderId ${tradeMatched.incomingOrderId} Success!`,
-        );
-      }
-    });
+      this.logger.log(
+        `Trade request to ${tradeMatched.incomingSite} of orderId ${tradeMatched.incomingOrderId} Success!`,
+      );
+    }
   }
 }
